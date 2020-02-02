@@ -72,12 +72,13 @@ def main():
             import numpy as np
             with open(args.output, 'wb') as f:
                 np.save(f, np.array(result.rows))
-    if args.type == 'json':
-        print(json.dumps(to_json(result.rows, result.labels), indent=4 if sys.stdin.isatty() else None))
-    elif args.type == 'csv':
-        s = io.StringIO()
-        write_csv(s, result.rows, result.labels)
-        print(s.getvalue())
+    else:
+        if args.type == 'json':
+            print(json.dumps(to_json(result.rows, result.labels), indent=4 if sys.stdout.isatty() else None))
+        elif args.type == 'csv':
+            s = io.StringIO()
+            write_csv(s, result.rows, result.labels)
+            print(s.getvalue().strip())
 
 
 if __name__ == '__main__':

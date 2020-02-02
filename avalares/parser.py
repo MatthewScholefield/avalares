@@ -27,13 +27,18 @@ TokenData = namedtuple('TokenData', 'labels values')
 
 
 def parse(text: str, convert_values=True) -> ParseResult:
-    data = _tokenize_string(text)
+    data = _tokenize_string(text.strip())
     detector = PatternDetector()
-    for width in range(2, len(data.labels)):
-        for i in range(width, len(data.labels), width):
-            detector.mark_pattern(data.labels[i - width:i], i - width)
+    for width in range(2, len(data.labels) + 1):
+        for i in range(width, len(data.labels) + 2, width):
+            vals = data.labels[i - width:i]
+            if len(vals) < width:
+                prev = data.labels[i - 2 * width:i - width]
+                vals.extend(prev[len(vals):])
+            detector.mark_pattern(vals, i - width)
         detector.finish()
-    marking = heapq.nlargest(1, detector.pattern_counts)[0]
+    score = lambda x: x.count ** 2 * len(x.pattern)
+    marking = heapq.nlargest(1, detector.pattern_counts, key=score)[0]
 
     delim = _detect_delimiter(data.labels[marking.start_pos:], marking.pattern)
     data_start, schema = _fix_offset(data, marking, delim)
@@ -62,6 +67,8 @@ def _extract_rows(data: TokenData, pos: int, schema: tuple, delim: str, convert_
 
 def _fix_offset(data: TokenData, marking: PatternMarking, delim: str) -> Tuple[int, tuple]:
     pattern = marking.pattern
+    if delim not in pattern:
+        return marking.start_pos, pattern
     delim_pos = pattern.index(delim)
     schema = pattern[delim_pos + 1:] + pattern[:delim_pos]
     pos = marking.start_pos - len(pattern[delim_pos + 1:])
@@ -85,7 +92,7 @@ def _detect_delimiter(data_labels: list, pattern: tuple) -> str:
         detectors[c].finish()
 
     return max(detectors, key=lambda x: max(
-        (count ** 2 * interval if interval >= len(pattern) else 0, interval, count)
+        (count ** 2 * interval if interval >= len(pattern) else 0, x)
         for count, start_pos, interval in detectors[x].pattern_counts
     ))
 
@@ -103,6 +110,10 @@ def _tokenize_string(text: str) -> TokenData:
         token_labels.append(label)
         token_values.append(value)
         next_char = b
+    a = len(text)
+    if a > next_char:
+        token_labels.extend(text[next_char:a])
+        token_values.extend(text[next_char:a])
     return TokenData(token_labels, token_values)
 
 
