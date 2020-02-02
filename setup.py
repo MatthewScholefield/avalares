@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='avalares',
-    version='0.1.0',
+    version='0.1.1',
     description='Automatic text data extraction tool',
     url='https://github.com/matthewscholefield/avalares',
     author='Matthew D. Scholefield',
