@@ -56,4 +56,4 @@ def to_pandas(param):
     else:
         text = param
     result = parse(text)
-    return pd.DataFrame(result.rows, columns=result.labels)
+    return pd.DataFrame(result.rows, columns=result.labels or None)
