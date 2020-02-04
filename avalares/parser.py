@@ -44,7 +44,7 @@ def parse(text: str, convert_values=True) -> ParseResult:
     data_start, schema = _fix_offset(data, marking, delim)
     rows = _extract_rows(data, data_start, schema, delim, convert_values)
     label_names = _try_extract_header(data, data_start, delim, schema)
-    types = [i for i in marking.pattern if i in value_types]
+    types = [i for i in schema if i in value_types]
     return ParseResult(rows, label_names, types)
 
 
