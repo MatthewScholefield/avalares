@@ -5,12 +5,19 @@ from typing import List, Tuple
 
 from avalares.pattern_detector import PatternDetector, PatternMarking
 
-token_matcher = r'(?:{})'.format('|'.join([
-    r'(?P<string>[a-zA-Z_][a-zA-Z_0-9]*)',
-    r'(?P<float>[0-9]+\.[0-9]+)',
-    r'(?P<int>[0-9]+)',
-    r'(?P<space> +)'
-]))
+token_matchers = [
+    r'(?:{})'.format('|'.join([
+        r'(?P<string>[a-zA-Z_][a-zA-Z_0-9&=/]*)',
+        r'(?P<float>[0-9]+\.[0-9]+)',
+        r'(?P<int>[0-9]+)',
+        r'(?P<space> +)'
+    ])),
+    r'(?:{})'.format('|'.join([
+        r'(?P<string>[a-zA-Z_][a-zA-Z_0-9&=/]*)',
+        r'(?P<float>[0-9]+\.[0-9]+|[0-9]+)',
+        r'(?P<space> +)'
+    ]))
+]
 
 value_types = {
     'string', 'float', 'int'
@@ -27,7 +34,18 @@ TokenData = namedtuple('TokenData', 'labels values')
 
 
 def parse(text: str, convert_values=True) -> ParseResult:
-    data = _tokenize_string(text.strip())
+    text = text.replace('\r\n', '\n').strip() + '\n'
+    best_result = None
+    for token_matcher in token_matchers:
+        result, amount_used = _parse_tokens(_tokenize_string(text, token_matcher), convert_values)
+        if not best_result or len(best_result.rows) < len(result.rows):
+            best_result = result
+        if amount_used > 0.8:
+            break
+    return best_result
+
+
+def _parse_tokens(data: List[str], convert_values=True) -> (ParseResult, int):
     detector = PatternDetector()
     for width in range(2, len(data.labels) + 1):
         for i in range(width, len(data.labels) + 2, width):
@@ -37,6 +55,10 @@ def parse(text: str, convert_values=True) -> ParseResult:
                 vals.extend(prev[len(vals):])
             detector.mark_pattern(vals, i - width)
         detector.finish()
+    
+    if not detector.pattern_counts:
+        return ParseResult([], [], []), 1.0
+
     score = lambda x: x.count ** 2 * len(x.pattern)
     marking = heapq.nlargest(1, detector.pattern_counts, key=score)[0]
 
@@ -45,7 +67,7 @@ def parse(text: str, convert_values=True) -> ParseResult:
     rows = _extract_rows(data, data_start, schema, delim, convert_values)
     label_names = _try_extract_header(data, data_start, delim, schema)
     types = [i for i in schema if i in value_types]
-    return ParseResult(rows, label_names, types)
+    return ParseResult(rows, label_names, types), 1 - data_start / (len(data) - 1)
 
 
 def _extract_rows(data: TokenData, pos: int, schema: tuple, delim: str, convert_values=True):
@@ -79,10 +101,12 @@ def _fix_offset(data: TokenData, marking: PatternMarking, delim: str) -> Tuple[i
 
 
 def _detect_delimiter(data_labels: list, pattern: tuple) -> str:
-    chars = set(data_labels)
+    chars = set(data_labels) - value_types
     last_char = {c: -1 for c in chars}
     detectors = {c: PatternDetector() for c in chars}
     for i, c in enumerate(data_labels):
+        if c in value_types:
+            continue
         dist = i - last_char[c]
         detectors[c].mark_pattern(dist, last_char[c])
         last_char[c] = i
@@ -97,7 +121,7 @@ def _detect_delimiter(data_labels: list, pattern: tuple) -> str:
     ))
 
 
-def _tokenize_string(text: str) -> TokenData:
+def _tokenize_string(text: str, token_matcher: str) -> TokenData:
     token_labels = []
     token_values = []
     next_char = 0
