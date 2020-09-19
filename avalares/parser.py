@@ -34,7 +34,7 @@ TokenData = namedtuple('TokenData', 'labels values')
 
 
 def parse(text: str, convert_values=True) -> ParseResult:
-    text = text.replace('\r\n', '\n').strip() + '\n'
+    text = text.replace('\r\n', '\n').strip()
     best_result = None
     for token_matcher in token_matchers:
         result, amount_used = _parse_tokens(_tokenize_string(text, token_matcher), convert_values)
